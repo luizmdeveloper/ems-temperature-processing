@@ -5,6 +5,8 @@ import br.com.luizmariodev.ems.temperature.processing.api.model.TemperatureLogOu
 import br.com.luizmariodev.ems.temperature.processing.common.IdGenerator;
 import io.hypersistence.tsid.TSID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +23,15 @@ import java.time.OffsetDateTime;
 @Slf4j
 public class TemperatureProcessingController {
 
+    private final RabbitTemplate rabbitTemplate;
+
+    @Value("${exchange.temperature.received}")
+    private String exchangeReceived;
+
+    public TemperatureProcessingController(RabbitTemplate rabbitTemplate) {
+        this.rabbitTemplate = rabbitTemplate;
+    }
+
 
     @PostMapping(consumes = MediaType.TEXT_PLAIN_VALUE)
     public void data(@PathVariable TSID sensorId, @RequestBody String text) {
@@ -36,7 +47,6 @@ public class TemperatureProcessingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
 
-
         var logOutput = new TemperatureLogOutput();
         logOutput.setId(IdGenerator.generateTimeBasedUUID());
         logOutput.setSensorId(sensorId);
@@ -44,5 +54,7 @@ public class TemperatureProcessingController {
         logOutput.setValue(value);
 
         log.info(logOutput.toString());
+
+        rabbitTemplate.convertAndSend(exchangeReceived, "", logOutput);
     }
 }
